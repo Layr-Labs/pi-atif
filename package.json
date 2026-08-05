@@ -54,7 +54,7 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "build": "tsc -p tsconfig.build.json",
+    "build": "rm -rf dist && tsc -p tsconfig.build.json",
     "prepack": "npm run build",
     "validate:openagents": "tsx scripts/validate-openagents.ts",
     "validate:harbor": "bash scripts/validate-harbor.sh",
