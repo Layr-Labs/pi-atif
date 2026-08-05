@@ -1,0 +1,43 @@
+{
+  "schema_version": "ATIF-v1.7",
+  "session_id": "fixture-compaction-session",
+  "trajectory_id": "fixture-compaction-trajectory",
+  "agent": {
+    "name": "pi-atif",
+    "version": "0.1.0"
+  },
+  "steps": [
+    {
+      "step_id": 1,
+      "timestamp": "2026-08-05T12:00:00.000Z",
+      "source": "system",
+      "message": "Context compaction performed",
+      "observation": {
+        "results": [
+          {
+            "content": "Summary: prior conversation covered the benchmark setup and current plan."
+          }
+        ]
+      },
+      "extra": {
+        "context_management": {
+          "type": "compaction",
+          "boundary": "replace"
+        }
+      }
+    },
+    {
+      "step_id": 2,
+      "timestamp": "2026-08-05T12:00:02.000Z",
+      "source": "agent",
+      "message": "I will continue from the compacted summary.",
+      "llm_call_count": 1
+    }
+  ],
+  "final_metrics": {
+    "total_steps": 2
+  },
+  "extra": {
+    "producer": "pi-atif"
+  }
+}

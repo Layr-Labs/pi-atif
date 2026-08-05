@@ -1,0 +1,62 @@
+{
+  "schema_version": "ATIF-v1.7",
+  "session_id": "fixture-basic-session",
+  "trajectory_id": "fixture-basic-trajectory",
+  "agent": {
+    "name": "pi-atif",
+    "version": "0.1.0",
+    "model_name": "gpt-test"
+  },
+  "notes": "Basic ATIF fixture with one user step and one tool-using agent step.",
+  "steps": [
+    {
+      "step_id": 1,
+      "timestamp": "2026-08-05T12:00:00.000Z",
+      "source": "user",
+      "message": "Create a file called hello.txt with Hello, world!"
+    },
+    {
+      "step_id": 2,
+      "timestamp": "2026-08-05T12:00:01.000Z",
+      "source": "agent",
+      "model_name": "gpt-test",
+      "message": "I will create the file.",
+      "reasoning_content": "The task requires a file write followed by verification.",
+      "tool_calls": [
+        {
+          "tool_call_id": "call-write-1",
+          "function_name": "write",
+          "arguments": {
+            "path": "hello.txt",
+            "content": "Hello, world!"
+          }
+        }
+      ],
+      "observation": {
+        "results": [
+          {
+            "source_call_id": "call-write-1",
+            "content": "Wrote hello.txt"
+          }
+        ]
+      },
+      "metrics": {
+        "prompt_tokens": 100,
+        "completion_tokens": 20,
+        "cached_tokens": 10,
+        "cost_usd": 0.031
+      },
+      "llm_call_count": 1
+    }
+  ],
+  "final_metrics": {
+    "total_prompt_tokens": 100,
+    "total_completion_tokens": 20,
+    "total_cached_tokens": 10,
+    "total_cost_usd": 0.031,
+    "total_steps": 2
+  },
+  "extra": {
+    "producer": "pi-atif"
+  }
+}

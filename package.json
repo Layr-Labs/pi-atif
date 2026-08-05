@@ -1,0 +1,77 @@
+{
+  "name": "pi-atif",
+  "version": "0.1.0",
+  "description": "Pi package that emits Harbor ATIF-v1.7 agent trajectories.",
+  "type": "module",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./extension": "./src/extension.ts",
+    "./mapper": "./src/mapper.ts",
+    "./schema": "./src/schema.ts",
+    "./writer": "./src/writer.ts"
+  },
+  "files": [
+    "src",
+    "fixtures",
+    "README.md"
+  ],
+  "keywords": [
+    "pi-package",
+    "pi",
+    "pi-coding-agent",
+    "atif",
+    "harbor",
+    "trajectory",
+    "agent-traces"
+  ],
+  "author": "Arya Bhuptani",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/aryabhuptani/pi-atif.git"
+  },
+  "bugs": {
+    "url": "https://github.com/aryabhuptani/pi-atif/issues"
+  },
+  "homepage": "https://github.com/aryabhuptani/pi-atif#readme",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "build": "npm run typecheck",
+    "validate:openagents": "tsx scripts/validate-openagents.ts fixtures/*.json",
+    "validate:harbor": "python -m harbor.utils.trajectory_validator fixtures/*.json",
+    "validate": "npm run validate:openagents && npm run validate:harbor"
+  },
+  "pi": {
+    "extensions": [
+      "./src/extension.ts"
+    ]
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-agent-core": "*",
+    "@earendil-works/pi-ai": "*",
+    "@earendil-works/pi-coding-agent": "*"
+  },
+  "peerDependenciesMeta": {
+    "@earendil-works/pi-agent-core": {
+      "optional": true
+    },
+    "@earendil-works/pi-ai": {
+      "optional": true
+    }
+  },
+  "dependencies": {
+    "@openagentsinc/atif": "0.1.0",
+    "typebox": "^1.3.10"
+  },
+  "devDependencies": {
+    "@earendil-works/pi-agent-core": "^0.83.0",
+    "@earendil-works/pi-ai": "^0.83.0",
+    "@earendil-works/pi-coding-agent": "^0.83.0",
+    "@types/node": "^24.0.0",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0",
+    "vitest": "^3.2.0"
+  }
+}
