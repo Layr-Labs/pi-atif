@@ -1,0 +1,79 @@
+{
+  "schema_version": "ATIF-v1.7",
+  "session_id": "fixture-eval-session",
+  "trajectory_id": "fixture-eval-trajectory",
+  "agent": {
+    "name": "pi-atif",
+    "version": "0.1.0",
+    "model_name": "gpt-test"
+  },
+  "steps": [
+    {
+      "step_id": 1,
+      "timestamp": "2026-08-05T12:00:00.000Z",
+      "source": "user",
+      "message": [
+        { "type": "text", "text": "Inspect the failing UI shown here." },
+        { "type": "image", "source": { "media_type": "image/png", "path": "https://fixtures.invalid/failure.png" } }
+      ]
+    },
+    {
+      "step_id": 2,
+      "timestamp": "2026-08-05T12:00:01.000Z",
+      "source": "agent",
+      "message": "The first check failed.",
+      "tool_calls": [
+        { "tool_call_id": "call-test-1", "function_name": "bash", "arguments": { "command": "npm test" } }
+      ],
+      "observation": {
+        "results": [
+          {
+            "source_call_id": "call-test-1",
+            "content": "FAIL expected button to be enabled",
+            "extra": { "tool_name": "bash", "is_error": true }
+          }
+        ]
+      },
+      "llm_call_count": 1
+    },
+    {
+      "step_id": 3,
+      "timestamp": "2026-08-05T12:00:02.000Z",
+      "source": "system",
+      "message": "Context compaction performed",
+      "observation": { "results": [{ "content": "The UI test failed; implementation remains to be fixed." }] },
+      "extra": { "context_management": { "type": "compaction", "boundary": "replace", "reason": "threshold" } }
+    },
+    {
+      "step_id": 4,
+      "timestamp": "2026-08-05T12:00:03.000Z",
+      "source": "user",
+      "message": "Fix it and rerun the focused test."
+    },
+    {
+      "step_id": 5,
+      "timestamp": "2026-08-05T12:00:04.000Z",
+      "source": "agent",
+      "message": "The focused test now passes.",
+      "llm_call_count": 1
+    }
+  ],
+  "final_metrics": { "total_steps": 5 },
+  "extra": {
+    "producer": "pi-atif",
+    "pi_atif": {
+      "eval": {
+        "benchmark_id": "ui-bench",
+        "task_id": "button-42",
+        "run_id": "eureka-run-7",
+        "attempt_index": 1,
+        "suite_id": "eureka-smoke",
+        "split": "test",
+        "reward": 1,
+        "score": 0.95,
+        "verifier_outcome": "passed"
+      },
+      "capture": { "reasoning_content": false, "raw_provider_fields": false }
+    }
+  }
+}

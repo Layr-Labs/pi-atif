@@ -18,6 +18,21 @@ export interface PiAtifMapperOptions {
   trajectoryId?: string;
   notes?: string;
   extra?: Record<string, unknown>;
+  evalMetadata?: PiAtifEvalMetadata;
+  includeReasoningContent?: boolean;
+  includeRawProviderFields?: boolean;
+}
+
+export interface PiAtifEvalMetadata {
+  benchmarkId?: string;
+  taskId?: string;
+  runId?: string;
+  attemptIndex?: number;
+  suiteId?: string;
+  split?: string;
+  reward?: number;
+  score?: number;
+  verifierOutcome?: string;
 }
 
 export class PiAtifMapper {
@@ -26,9 +41,10 @@ export class PiAtifMapper {
   private readonly trajectoryId: string;
   private readonly notes?: string;
   private readonly extra: Record<string, unknown>;
+  private readonly includeReasoningContent: boolean;
+  private readonly includeRawProviderFields: boolean;
   private steps: AtifStep[] = [];
   private emittedInitialSystem = false;
-  private emittedInitialUser = false;
 
   constructor(options: PiAtifMapperOptions = {}) {
     this.sessionId = options.sessionId ?? process.env.PI_ATIF_RUN_ID ?? `pi-${Date.now()}`;
@@ -39,7 +55,19 @@ export class PiAtifMapper {
       ...(options.modelName ? { model_name: options.modelName } : {}),
     };
     this.notes = options.notes;
-    this.extra = options.extra ?? {};
+    this.includeReasoningContent = options.includeReasoningContent ?? envBoolean("PI_ATIF_INCLUDE_REASONING_CONTENT", false);
+    this.includeRawProviderFields = options.includeRawProviderFields ?? envBoolean("PI_ATIF_INCLUDE_RAW_PROVIDER_FIELDS", false);
+    const evalMetadata = normalizeEvalMetadata(options.evalMetadata ?? evalMetadataFromEnv());
+    this.extra = {
+      ...(options.extra ?? {}),
+      pi_atif: {
+        eval: evalMetadata,
+        capture: {
+          reasoning_content: this.includeReasoningContent,
+          raw_provider_fields: this.includeRawProviderFields,
+        },
+      },
+    };
   }
 
   handleSessionStart(event: Pick<SessionStartEvent, "reason" | "previousSessionFile">, cwd?: string): void {
@@ -63,17 +91,14 @@ export class PiAtifMapper {
       this.emittedInitialSystem = true;
     }
 
-    if (!this.emittedInitialUser) {
-      this.addStep({
-        source: "user",
-        message: event.images && event.images.length > 0 ? contentToAtif([{ type: "text", text: event.prompt }, ...event.images]) : event.prompt,
-        extra: {
-          pi_event: "before_agent_start",
-          image_count: event.images?.length ?? 0,
-        },
-      });
-      this.emittedInitialUser = true;
-    }
+    this.addStep({
+      source: "user",
+      message: event.images && event.images.length > 0 ? contentToAtif([{ type: "text", text: event.prompt }, ...event.images]) : event.prompt,
+      extra: {
+        pi_event: "before_agent_start",
+        image_count: event.images?.length ?? 0,
+      },
+    });
   }
 
   handleTurnEnd(event: Pick<TurnEndEvent, "turnIndex" | "message" | "toolResults">): void {
@@ -102,7 +127,7 @@ export class PiAtifMapper {
       timestamp: toIso(message.timestamp),
       model_name: typeof message.model === "string" ? message.model : undefined,
       message: contentToAtif(message.content),
-      reasoning_content: extractThinking(message.content),
+      reasoning_content: this.includeReasoningContent ? extractThinking(message.content) : undefined,
       tool_calls: toolCalls.map((call) => ({
         tool_call_id: call.id,
         function_name: call.name,
@@ -114,10 +139,9 @@ export class PiAtifMapper {
       extra: normalizeJsonObject({
         pi_event: "turn_end",
         turn_index: event.turnIndex,
-        provider: message.provider,
-        api: message.api,
-        stop_reason: message.stopReason,
-        error_message: message.errorMessage,
+        raw_provider_fields: this.includeRawProviderFields
+          ? { provider: message.provider, api: message.api, stop_reason: message.stopReason, error_message: message.errorMessage }
+          : undefined,
       }),
     });
   }
@@ -177,7 +201,6 @@ export class PiAtifMapper {
   }
 
   private addMessageAsStep(message: PiAgentMessage, extra: Record<string, unknown> = {}): void {
-    if (message.role === "user" && this.emittedInitialUser) return;
     if (message.role === "toolResult") return;
     const source = message.role === "assistant" ? "agent" : message.role === "user" ? "user" : "system";
     this.addStep({
@@ -189,7 +212,6 @@ export class PiAtifMapper {
         pi_role: message.role,
       },
     });
-    if (message.role === "user") this.emittedInitialUser = true;
   }
 
   private addStep(step: Omit<AtifStep, "step_id">): void {
@@ -226,6 +248,47 @@ export class PiAtifMapper {
       total_steps: this.steps.length,
     };
   }
+}
+
+function evalMetadataFromEnv(): PiAtifEvalMetadata {
+  return {
+    benchmarkId: process.env.PI_ATIF_BENCHMARK_ID,
+    taskId: process.env.PI_ATIF_TASK_ID,
+    runId: process.env.PI_ATIF_EVAL_RUN_ID ?? process.env.PI_ATIF_RUN_ID,
+    attemptIndex: envNumber("PI_ATIF_ATTEMPT_INDEX"),
+    suiteId: process.env.PI_ATIF_SUITE_ID,
+    split: process.env.PI_ATIF_SPLIT,
+    reward: envNumber("PI_ATIF_REWARD"),
+    score: envNumber("PI_ATIF_SCORE"),
+    verifierOutcome: process.env.PI_ATIF_VERIFIER_OUTCOME,
+  };
+}
+
+function normalizeEvalMetadata(metadata: PiAtifEvalMetadata): Record<string, unknown> {
+  return stripUndefined({
+    benchmark_id: metadata.benchmarkId,
+    task_id: metadata.taskId,
+    run_id: metadata.runId,
+    attempt_index: metadata.attemptIndex,
+    suite_id: metadata.suiteId,
+    split: metadata.split,
+    reward: metadata.reward,
+    score: metadata.score,
+    verifier_outcome: metadata.verifierOutcome,
+  }) as Record<string, unknown>;
+}
+
+function envBoolean(name: string, fallback: boolean): boolean {
+  const value = process.env[name]?.trim().toLowerCase();
+  if (value === undefined || value === "") return fallback;
+  return value === "1" || value === "true" || value === "yes" || value === "on";
+}
+
+function envNumber(name: string): number | undefined {
+  const value = process.env[name];
+  if (value === undefined || value.trim() === "") return undefined;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
 }
 
 export function trajectoryFromPiJsonEvents(events: Iterable<Record<string, unknown>>, options: PiAtifMapperOptions = {}): AtifTrajectory {

@@ -8,6 +8,8 @@ describe("PiAtifMapper", () => {
       trajectoryId: "traj-1",
       agentName: "pi-test",
       agentVersion: "0.1.0",
+      includeReasoningContent: true,
+      includeRawProviderFields: true,
     });
 
     mapper.handleBeforeAgentStart({
@@ -57,6 +59,71 @@ describe("PiAtifMapper", () => {
     expect(trajectory.steps[2]?.tool_calls?.[0]?.function_name).toBe("write");
     expect(trajectory.steps[2]?.observation?.results[0]?.source_call_id).toBe("call-1");
     expect(trajectory.final_metrics?.total_prompt_tokens).toBe(100);
+    expect(trajectory.steps[2]?.reasoning_content).toBe("Need to write the file.");
+    expect(trajectory.steps[2]?.extra?.raw_provider_fields).toEqual({
+      provider: "openai",
+      api: "openai-responses",
+      stop_reason: "toolUse",
+    });
+  });
+
+  it("captures multi-turn prompts, path images, tool errors, and eval metadata", () => {
+    const mapper = new PiAtifMapper({
+      sessionId: "sess-eval",
+      trajectoryId: "traj-eval",
+      evalMetadata: {
+        benchmarkId: "swe-bench",
+        taskId: "task-42",
+        runId: "eval-run-7",
+        attemptIndex: 2,
+        suiteId: "eureka-smoke",
+        split: "test",
+        reward: 0,
+        score: 0.25,
+        verifierOutcome: "failed",
+      },
+    });
+    mapper.handleBeforeAgentStart({
+      prompt: "Inspect this screenshot",
+      images: [{ type: "image", source: { media_type: "image/png", path: "/tmp/failure.png" } }] as any,
+    } as any);
+    mapper.handleBeforeAgentStart({ prompt: "Now retry the failing command" } as any);
+    mapper.handleTurnEnd({
+      turnIndex: 2,
+      message: {
+        role: "assistant",
+        content: [
+          { type: "thinking", thinking: "This should be excluded by default." },
+          { type: "text", text: "Running it again." },
+          { type: "toolCall", id: "call-err", name: "bash", arguments: { command: "false" } },
+        ],
+        provider: "test-provider",
+      } as any,
+      toolResults: [{ toolCallId: "call-err", toolName: "bash", content: "exit 1", isError: true } as any],
+    });
+
+    const trajectory = mapper.toTrajectory();
+    expect(trajectory.steps.map((step) => step.source)).toEqual(["user", "user", "agent"]);
+    expect(trajectory.steps[0]?.message).toEqual([
+      { type: "text", text: "Inspect this screenshot" },
+      { type: "image", source: { media_type: "image/png", path: "/tmp/failure.png" } },
+    ]);
+    expect(trajectory.steps[2]?.reasoning_content).toBeUndefined();
+    expect(trajectory.steps[2]?.observation?.results[0]?.extra?.is_error).toBe(true);
+    expect(trajectory.extra?.pi_atif).toEqual({
+      eval: {
+        benchmark_id: "swe-bench",
+        task_id: "task-42",
+        run_id: "eval-run-7",
+        attempt_index: 2,
+        suite_id: "eureka-smoke",
+        split: "test",
+        reward: 0,
+        score: 0.25,
+        verifier_outcome: "failed",
+      },
+      capture: { reasoning_content: false, raw_provider_fields: false },
+    });
   });
 
   it("marks compaction as an ATIF context-management system step", () => {

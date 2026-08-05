@@ -40,7 +40,7 @@
     "test": "vitest run",
     "build": "npm run typecheck",
     "validate:openagents": "tsx scripts/validate-openagents.ts fixtures/*.json",
-    "validate:harbor": "python -m harbor.utils.trajectory_validator fixtures/*.json",
+    "validate:harbor": "for fixture in fixtures/*.json; do python -m harbor.utils.trajectory_validator \"$fixture\" || exit 1; done",
     "validate": "npm run validate:openagents && npm run validate:harbor"
   },
   "pi": {
