@@ -28,8 +28,8 @@ As a Pi package, add it to Pi settings:
 
 Environment variables:
 
-- `PI_ATIF_OUTPUT_DIR`: directory for `trajectory.json`; defaults to `./atif-output`.
-- `PI_ATIF_FILE_NAME`: output file name; defaults to `trajectory.json`.
+- `PI_ATIF_OUTPUT_DIR`: directory for trajectory JSON files; defaults to `./atif-output`.
+- `PI_ATIF_FILE_NAME`: output file name; defaults to a safe name derived from the trajectory/session id.
 - `PI_ATIF_RUN_ID`: ATIF `session_id`.
 - `PI_ATIF_TRAJECTORY_ID`: ATIF `trajectory_id`.
 - `PI_ATIF_AGENT_NAME`: ATIF agent name; defaults to `pi`.
