@@ -1,6 +1,8 @@
 import { assertValidAtif } from "@openagentsinc/atif/validate";
 import { describe, expect, it } from "vitest";
 import { PiAtifMapper } from "../src/mapper.ts";
+import { readFileSync } from "node:fs";
+import { globSync } from "node:fs";
 
 describe("OpenAgents ATIF validator", () => {
   it("accepts generated trajectories", () => {
@@ -12,5 +14,11 @@ describe("OpenAgents ATIF validator", () => {
     });
     const trajectory = mapper.toTrajectory();
     expect(() => assertValidAtif(trajectory)).not.toThrow();
+  });
+
+  it("accepts every committed fixture", () => {
+    for (const path of globSync("fixtures/*.json")) {
+      expect(() => assertValidAtif(JSON.parse(readFileSync(path, "utf8"))), path).not.toThrow();
+    }
   });
 });
