@@ -40,6 +40,8 @@ Environment variables:
 TypeScript/unit validation:
 
 ```bash
+npm run typecheck
+npm run build
 npm test
 npm run validate:openagents
 ```
@@ -47,7 +49,7 @@ npm run validate:openagents
 Harbor reference validation:
 
 ```bash
-python -m harbor.utils.trajectory_validator fixtures/basic-tool-call.json
+npm run validate:harbor
 ```
 
 Install Harbor if needed:
@@ -55,7 +57,17 @@ Install Harbor if needed:
 ```bash
 python -m venv .venv
 .venv/bin/python -m pip install harbor
-.venv/bin/python -m harbor.utils.trajectory_validator fixtures/basic-tool-call.json
+npm run validate:harbor
+```
+
+Both validator scripts check JSON files in `fixtures/` and, when present,
+`atif-output/`. Set `PYTHON` to override the interpreter used for Harbor.
+
+Before publishing, build and inspect the tarball contents:
+
+```bash
+npm run build
+npm pack --dry-run
 ```
 
 ## ATIF Coverage
