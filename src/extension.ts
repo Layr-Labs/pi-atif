@@ -6,13 +6,14 @@ export default function piAtif(pi: ExtensionAPI): void {
   let mapper = new PiAtifMapper();
   let lastWrite: Promise<unknown> = Promise.resolve();
 
-  async function flush(): Promise<void> {
-    const trajectory = mapper.toTrajectory();
+  async function flush(trajectory: ReturnType<PiAtifMapper["toTrajectory"]>): Promise<void> {
     await writeAtifTrajectory(trajectory);
   }
 
   function queueFlush(): void {
-    lastWrite = lastWrite.then(flush, flush).catch((error) => {
+    const trajectory = mapper.toTrajectory();
+    const writeSnapshot = () => flush(trajectory);
+    lastWrite = lastWrite.then(writeSnapshot, writeSnapshot).catch((error) => {
       console.error("[pi-atif] failed to write trajectory", error);
     });
   }

@@ -5,6 +5,7 @@ import type {
   SessionStartEvent,
   TurnEndEvent,
 } from "@earendil-works/pi-coding-agent";
+import { randomUUID } from "node:crypto";
 import { contentToAtif, extractText, extractThinking, extractToolCalls, normalizeJsonObject, stringifyUnknown } from "./content.ts";
 import { ATIF_SCHEMA_VERSION, type AtifAgent, type AtifFinalMetrics, type AtifStep, type AtifTrajectory } from "./schema.ts";
 
@@ -28,10 +29,9 @@ export class PiAtifMapper {
   private readonly extra: Record<string, unknown>;
   private steps: AtifStep[] = [];
   private emittedInitialSystem = false;
-  private emittedInitialUser = false;
 
   constructor(options: PiAtifMapperOptions = {}) {
-    this.sessionId = options.sessionId ?? process.env.PI_ATIF_RUN_ID ?? `pi-${Date.now()}`;
+    this.sessionId = options.sessionId ?? process.env.PI_ATIF_RUN_ID ?? `pi-${randomUUID()}`;
     this.trajectoryId = options.trajectoryId ?? process.env.PI_ATIF_TRAJECTORY_ID ?? `${this.sessionId}-trajectory`;
     this.agent = {
       name: options.agentName ?? process.env.PI_ATIF_AGENT_NAME ?? "pi",
@@ -63,17 +63,14 @@ export class PiAtifMapper {
       this.emittedInitialSystem = true;
     }
 
-    if (!this.emittedInitialUser) {
-      this.addStep({
-        source: "user",
-        message: event.images && event.images.length > 0 ? contentToAtif([{ type: "text", text: event.prompt }, ...event.images]) : event.prompt,
-        extra: {
-          pi_event: "before_agent_start",
-          image_count: event.images?.length ?? 0,
-        },
-      });
-      this.emittedInitialUser = true;
-    }
+    this.addStep({
+      source: "user",
+      message: event.images && event.images.length > 0 ? contentToAtif([{ type: "text", text: event.prompt }, ...event.images]) : event.prompt,
+      extra: {
+        pi_event: "before_agent_start",
+        image_count: event.images?.length ?? 0,
+      },
+    });
   }
 
   handleTurnEnd(event: Pick<TurnEndEvent, "turnIndex" | "message" | "toolResults">): void {
@@ -177,7 +174,6 @@ export class PiAtifMapper {
   }
 
   private addMessageAsStep(message: PiAgentMessage, extra: Record<string, unknown> = {}): void {
-    if (message.role === "user" && this.emittedInitialUser) return;
     if (message.role === "toolResult") return;
     const source = message.role === "assistant" ? "agent" : message.role === "user" ? "user" : "system";
     this.addStep({
@@ -189,7 +185,6 @@ export class PiAtifMapper {
         pi_role: message.role,
       },
     });
-    if (message.role === "user") this.emittedInitialUser = true;
   }
 
   private addStep(step: Omit<AtifStep, "step_id">): void {
@@ -274,16 +269,25 @@ function normalizeUsage(usage: unknown) {
     input?: number;
     output?: number;
     cacheRead?: number;
+    cacheWrite?: number;
     totalTokens?: number;
     cost?: { total?: number; input?: number; output?: number; cacheRead?: number; cacheWrite?: number };
   };
+  const input = asNumber(u.input);
+  const cacheRead = asNumber(u.cacheRead);
+  const cacheWrite = asNumber(u.cacheWrite);
+  const promptTokens = [input, cacheRead, cacheWrite].some((value) => value !== undefined)
+    ? (input ?? 0) + (cacheRead ?? 0) + (cacheWrite ?? 0)
+    : undefined;
   return {
-    prompt_tokens: asNumber(u.input),
+    prompt_tokens: promptTokens,
     completion_tokens: asNumber(u.output),
-    cached_tokens: asNumber(u.cacheRead),
+    cached_tokens: cacheRead,
     cost_usd: asNumber(u.cost?.total),
     extra: normalizeJsonObject({
       total_tokens: u.totalTokens,
+      cache_write_tokens: cacheWrite,
+      raw_usage: normalizeJsonObject(usage),
       cost_breakdown: u.cost,
     }),
   };

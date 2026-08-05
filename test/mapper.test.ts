@@ -32,7 +32,8 @@ describe("PiAtifMapper", () => {
           input: 100,
           output: 20,
           cacheRead: 10,
-          totalTokens: 120,
+          cacheWrite: 5,
+          totalTokens: 135,
           cost: { input: 0.01, output: 0.02, cacheRead: 0.001, cacheWrite: 0, total: 0.031 },
         },
         stopReason: "toolUse",
@@ -56,7 +57,50 @@ describe("PiAtifMapper", () => {
     expect(trajectory.steps).toHaveLength(3);
     expect(trajectory.steps[2]?.tool_calls?.[0]?.function_name).toBe("write");
     expect(trajectory.steps[2]?.observation?.results[0]?.source_call_id).toBe("call-1");
-    expect(trajectory.final_metrics?.total_prompt_tokens).toBe(100);
+    expect(trajectory.steps[2]?.metrics).toMatchObject({
+      prompt_tokens: 115,
+      cached_tokens: 10,
+    });
+    expect(trajectory.steps[2]?.metrics?.extra).toMatchObject({
+      cache_write_tokens: 5,
+      raw_usage: { input: 100, output: 20, cacheRead: 10 },
+    });
+    expect(trajectory.final_metrics).toMatchObject({
+      total_prompt_tokens: 115,
+      total_completion_tokens: 20,
+      total_cached_tokens: 10,
+      total_cost_usd: 0.031,
+    });
+  });
+
+  it("captures every user prompt while emitting the system prompt only once", () => {
+    const mapper = new PiAtifMapper({ sessionId: "sess-multi", trajectoryId: "traj-multi" });
+    mapper.handleBeforeAgentStart({ prompt: "First", systemPrompt: "System", systemPromptOptions: {} as any });
+    mapper.handleBeforeAgentStart({ prompt: "Second", systemPrompt: "Changed system", systemPromptOptions: {} as any });
+
+    const trajectory = mapper.toTrajectory();
+    expect(trajectory.steps.map(({ source, message }) => ({ source, message }))).toEqual([
+      { source: "system", message: "System" },
+      { source: "user", message: "First" },
+      { source: "user", message: "Second" },
+    ]);
+  });
+
+  it("counts cache reads and writes as prompt tokens and aggregates them", () => {
+    const mapper = new PiAtifMapper({ sessionId: "sess-usage", trajectoryId: "traj-usage" });
+    for (const [turnIndex, input, cacheRead, cacheWrite] of [[1, 10, 3, 2], [2, 20, 4, 5]] as const) {
+      mapper.handleTurnEnd({
+        turnIndex,
+        message: { role: "assistant", content: [], usage: { input, output: turnIndex, cacheRead, cacheWrite } } as any,
+        toolResults: [],
+      });
+    }
+
+    expect(mapper.toTrajectory().final_metrics).toMatchObject({
+      total_prompt_tokens: 44,
+      total_completion_tokens: 3,
+      total_cached_tokens: 7,
+    });
   });
 
   it("marks compaction as an ATIF context-management system step", () => {

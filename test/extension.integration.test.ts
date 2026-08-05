@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readdir, readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { assertValidAtif } from "@openagentsinc/atif/validate";
@@ -27,6 +27,7 @@ let outputDir: string | undefined;
 
 afterEach(async () => {
   delete process.env.PI_ATIF_OUTPUT_DIR;
+  delete process.env.PI_ATIF_FILE_NAME;
   if (outputDir) await rm(outputDir, { recursive: true, force: true });
   outputDir = undefined;
 });
@@ -74,9 +75,30 @@ describe("pi-atif extension", () => {
     await fakePi.emit("agent_settled", { type: "agent_settled" });
     await fakePi.emit("session_shutdown", { type: "session_shutdown", reason: "quit" });
 
-    const trajectory = JSON.parse(await readFile(join(outputDir, "trajectory.json"), "utf8"));
+    const files = await readdir(outputDir);
+    expect(files).toHaveLength(1);
+    const trajectory = JSON.parse(await readFile(join(outputDir, files[0]!), "utf8"));
     expect(trajectory.steps).toHaveLength(3);
     assertValidAtif(trajectory);
+  });
+
+  it("uses unique files and preserves queued snapshots across rapid session rollover", async () => {
+    outputDir = await mkdtemp(join(tmpdir(), "pi-atif-"));
+    process.env.PI_ATIF_OUTPUT_DIR = outputDir;
+    const fakePi = new FakePi();
+    piAtif(fakePi as any);
+
+    await fakePi.emit("session_start", { type: "session_start", reason: "startup" });
+    await fakePi.emit("before_agent_start", { type: "before_agent_start", prompt: "First session", systemPrompt: "System" });
+    await fakePi.emit("session_start", { type: "session_start", reason: "new" });
+    await fakePi.emit("before_agent_start", { type: "before_agent_start", prompt: "Second session", systemPrompt: "System" });
+    await fakePi.emit("session_shutdown", { type: "session_shutdown", reason: "quit" });
+
+    const files = (await readdir(outputDir)).filter((file) => file.endsWith(".json"));
+    expect(files).toHaveLength(2);
+    const trajectories = await Promise.all(files.map(async (file) => JSON.parse(await readFile(join(outputDir!, file), "utf8"))));
+    expect(new Set(trajectories.map((trajectory) => trajectory.session_id)).size).toBe(2);
+    expect(trajectories.map((trajectory) => trajectory.steps.at(-1)?.message).sort()).toEqual(["First session", "Second session"]);
   });
 });
 
