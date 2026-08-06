@@ -373,12 +373,35 @@ function toIso(value: unknown): string | undefined {
 }
 
 function stripUndefined(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map((item) => stripUndefined(item));
-  if (!value || typeof value !== "object") return value;
-  const out: Record<string, unknown> = {};
-  for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
-    if (item === undefined) continue;
-    out[key] = stripUndefined(item);
+  return stripUndefinedValue(value, new WeakSet<object>());
+}
+
+function stripUndefinedValue(value: unknown, ancestors: WeakSet<object>): unknown {
+  if (Array.isArray(value)) {
+    if (ancestors.has(value)) return null;
+    ancestors.add(value);
+    try {
+      return value.map((item) => stripUndefinedValue(item, ancestors));
+    } finally {
+      ancestors.delete(value);
+    }
   }
-  return out;
+  if (!value || typeof value !== "object") return value;
+  if (ancestors.has(value)) return null;
+  ancestors.add(value);
+  const out: Record<string, unknown> = {};
+  try {
+    for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
+      if (item === undefined) continue;
+      Object.defineProperty(out, key, {
+        value: stripUndefinedValue(item, ancestors),
+        enumerable: true,
+        configurable: true,
+        writable: true,
+      });
+    }
+    return out;
+  } finally {
+    ancestors.delete(value);
+  }
 }
