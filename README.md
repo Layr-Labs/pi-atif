@@ -62,6 +62,31 @@ code, credentials, personal data, or other sensitive material. Run collection in
 an appropriately isolated environment and redact upstream before publishing or
 using traces outside their original trust boundary.
 
+Trajectory files and newly created output directories default to owner-only
+permissions (`0600` and `0700`, respectively). Programmatic integrations can
+apply a redaction or filtering function immediately before serialization:
+
+```ts
+import { writeAtifTrajectory } from "pi-atif/writer";
+
+await writeAtifTrajectory(trajectory, {
+  transformTrajectory: redactTrajectory,
+});
+```
+
+Custom Pi extension wrappers can apply the same hook to every automatic flush:
+
+```ts
+import { createPiAtifExtension } from "pi-atif/extension";
+
+export default createPiAtifExtension({
+  writer: { transformTrajectory: redactTrajectory },
+});
+```
+
+`transformTrajectory` must return a complete ATIF trajectory. Redaction remains
+the caller's responsibility; the default extension preserves raw trace fidelity.
+
 ## Validation
 
 TypeScript/unit validation:
