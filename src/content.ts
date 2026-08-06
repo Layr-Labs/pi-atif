@@ -43,19 +43,46 @@ export function normalizeJsonObject(value: unknown): JsonObject {
 }
 
 export function sanitizeJson(value: unknown): unknown {
+  return sanitizeJsonValue(value, new WeakSet<object>());
+}
+
+function sanitizeJsonValue(value: unknown, ancestors: WeakSet<object>): unknown {
   if (value === undefined) return null;
   if (value === null || typeof value === "string" || typeof value === "number" || typeof value === "boolean") return value;
   if (typeof value === "bigint") return String(value);
-  if (Array.isArray(value)) return value.map((item) => sanitizeJson(item));
-  if (typeof value === "object") {
-    const out: Record<string, unknown> = {};
-    for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
-      if (typeof item === "function" || typeof item === "symbol" || item === undefined) continue;
-      out[key] = sanitizeJson(item);
+  if (Array.isArray(value)) {
+    if (ancestors.has(value)) return null;
+    ancestors.add(value);
+    try {
+      return value.map((item) => sanitizeJsonValue(item, ancestors));
+    } finally {
+      ancestors.delete(value);
     }
-    return out;
+  }
+  if (typeof value === "object") {
+    if (ancestors.has(value)) return null;
+    ancestors.add(value);
+    const out: Record<string, unknown> = {};
+    try {
+      for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
+        if (typeof item === "function" || typeof item === "symbol" || item === undefined) continue;
+        defineOwn(out, key, sanitizeJsonValue(item, ancestors));
+      }
+      return out;
+    } finally {
+      ancestors.delete(value);
+    }
   }
   return String(value);
+}
+
+function defineOwn(target: Record<string, unknown>, key: string, value: unknown): void {
+  Object.defineProperty(target, key, {
+    value,
+    enumerable: true,
+    configurable: true,
+    writable: true,
+  });
 }
 
 export function contentToAtif(content: unknown): AtifMessageContent {

@@ -216,4 +216,25 @@ describe("PiAtifMapper", () => {
     expect(trajectory.steps).toHaveLength(1);
     expect(trajectory.steps[0]?.source).toBe("agent");
   });
+
+  it("records cyclic tool metadata without dropping the turn", () => {
+    const mapper = new PiAtifMapper({ sessionId: "sess-cycle", trajectoryId: "traj-cycle" });
+    const argumentsValue: Record<string, unknown> = { path: "example.txt" };
+    argumentsValue.self = argumentsValue;
+    const details: Record<string, unknown> = { bytes: 12 };
+    details.self = details;
+
+    mapper.handleTurnEnd({
+      turnIndex: 1,
+      message: {
+        role: "assistant",
+        content: [{ type: "toolCall", id: "call-cycle", name: "write", arguments: argumentsValue }],
+      } as any,
+      toolResults: [{ toolCallId: "call-cycle", toolName: "write", content: "ok", details } as any],
+    });
+
+    const step = mapper.toTrajectory().steps[0];
+    expect(step?.tool_calls?.[0]?.arguments).toEqual({ path: "example.txt", self: null });
+    expect(step?.observation?.results[0]?.extra?.details).toEqual({ bytes: 12, self: null });
+  });
 });
