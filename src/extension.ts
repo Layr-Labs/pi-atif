@@ -1,13 +1,25 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { PiAtifMapper } from "./mapper.ts";
-import { writeAtifTrajectory } from "./writer.ts";
+import { writeAtifTrajectory, type AtifWriterOptions } from "./writer.ts";
+
+export interface PiAtifExtensionOptions {
+  writer?: AtifWriterOptions;
+}
+
+export function createPiAtifExtension(options: PiAtifExtensionOptions = {}): (pi: ExtensionAPI) => void {
+  return (pi) => registerPiAtif(pi, options);
+}
 
 export default function piAtif(pi: ExtensionAPI): void {
+  registerPiAtif(pi);
+}
+
+function registerPiAtif(pi: ExtensionAPI, options: PiAtifExtensionOptions = {}): void {
   let mapper = new PiAtifMapper();
   let lastWrite: Promise<unknown> = Promise.resolve();
 
   async function flush(trajectory: ReturnType<PiAtifMapper["toTrajectory"]>): Promise<void> {
-    await writeAtifTrajectory(trajectory);
+    await writeAtifTrajectory(trajectory, options.writer);
   }
 
   function queueFlush(): void {
